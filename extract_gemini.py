@@ -6,39 +6,19 @@ import concurrent.futures
 import threading
 import os
 import time
-import pandas as pd
 
 # initializing variables
-name = "ITS_RefSeq_Fungi"
+name = "LSU_eukaryote_rRNA"
 extn = "tar.gz"
 db_name = f"{name}/{name}"
-output_file = f"csv_files/{name}.xlsx" # Changed to .xlsx
-blastn_file = f"blastn/{name}-blastn.xlsx" # Changed to .xlsx
+output_file = f"csv_files/{name}.tsv"
+blastn_file = f"blastn/{name}-blastn.tsv"
 sql_file = f"./{name}/taxonomy4blast.sqlite3"
 blastn_lock = threading.Lock()
-
-# Helper function to convert seconds to HH:MM:SS format
-def convert_seconds_to_hms(seconds):
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
-
-# Helper function to convert TSV to XLSX
-def convert_tsv_to_xlsx(tsv_path, xlsx_path):
-    print(f"Converting {tsv_path} to {xlsx_path}...")
-    try:
-        df = pd.read_csv(tsv_path, sep='\t', engine='python', on_bad_lines='skip')
-        df.to_excel(xlsx_path, index=False)
-        print("Conversion successful.")
-        return True
-    except Exception as e:
-        print(f"Error during TSV to XLSX conversion: {e}")
-        return False
 
 # creating directory in the current directory
 def creating_directory():
     print(f"Creating directory named {name}\n")
-    # Using '-p' to prevent error if directory already exists
     create_dir = f"mkdir -p {name}"
     result = subprocess.run(create_dir, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
@@ -76,9 +56,7 @@ def adding_parent():
     taxid_dict = {str(taxid): str(parent) for taxid, parent in cursor.fetchall()}
     conn.close()
     
-    # Write to a temporary TSV file for processing
-    temp_tsv_file = f"csv_files/{name}-temp.tsv"
-    with open("sample.tsv", mode="r", newline="") as infile, open(temp_tsv_file, mode="w", newline="") as outfile:
+    with open("sample.tsv", mode="r", newline="") as infile, open(output_file, mode="w", newline="") as outfile:
         reader = csv.reader(infile)
         writer = csv.writer(outfile, delimiter='\t')
         header = ["ordinal_number", "accession", "sequence_id", "sequence_title", "sequence", "gi", "sequence_length", "sequence_hash_value", "taxid", "taxid_leaf", "membership_integer", "common_taxonomic_name", "common_taxonomic_name_leaf", "scientific_name", "scientific_name_leaf", "blast_name", "taxonomic_super_kingdom", "pig", "taxid_parent"]
@@ -90,17 +68,16 @@ def adding_parent():
             row.append(parent)
             writer.writerow(row)
     
-    # Convert the temp TSV to the final XLSX file
-    convert_tsv_to_xlsx(temp_tsv_file, output_file)
-    os.remove(temp_tsv_file)
-    print(f"Added parent field. The new XLSX file is {output_file}\n")
+    print(f"Added parent field. The new TSV file is {output_file}\n")
 
 # creating header for the blastn file
 def blastn_file_creation():
     print(f"Creating {blastn_file} with header\n")
-    # We will write the TSV data to a temp file and convert it later
-    # This function now only prepares the output path and ensures the directory exists
-    pass
+    with open(blastn_file, mode="w", newline="") as write_file:
+        writer = csv.writer(write_file, delimiter='\t')
+        header = ["query_sequence_id", "query_gi", "query_accession", "query_accession_version", "query_sequence_length", "subject_sequence_id", "subject_all_sequence_id", "subject_gi", "subject_all_gi", "subject_accession", "subject_accession_version", "subject_all_accession", "subject_sequence_length", "query_start", "query_end", "subject_start", "subject_end", "query_sequence", "subject_sequence", "expect_value", "bit_score", "raw_score", "alignment_length", "percentage_identity", "number_of_identical_matches", "number_of_mismatches", "number_of_positive_scoring_matches", "number_of_gap_opens", "number_of_gaps", "percentage_of_positive_scoring_matches", "query/subject_frame", "query_frames", "subject_frames", "blast_traceback_operations", "subject_taxid", "subject_scientific_name", "subject_common_name", "subject_blast_name", "subject_super_kingdom", "subject_all_taxids", "subject_all_scientific_names", "subject_all_common_names", "subject_all_blast_names", "subject_all_super_kingdoms", "subject_strand", "query_coverage_per_subject", "query_coverage_per_hsp", "query_coverage_per_unique_subject", "subject_title", "subject_all_titles"]
+        writer.writerow(header)
+    print(f"Successfully created {blastn_file} with header\n")
 
 # worker function for blastn()
 def run_blastn_for_accession(row):
@@ -125,25 +102,15 @@ def run_blastn_for_accession(row):
             text=True
         )
         with blastn_lock:
-            with open(f"blastn/{name}-blastn-temp.tsv", 'a', newline='') as f:
+            with open(blastn_file, 'a', newline='') as f:
                 f.write(blastn_output.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error processing accession {accession}: {e.stderr}")
 
 def blastn():
     print("Running blastn for each accession and appending to blastn TSV file\n")
-    
-    # The original blastn_file_creation writes a header to a .tsv.
-    # We will write the header to a temporary .tsv file instead.
-    temp_blastn_tsv = f"blastn/{name}-blastn-temp.tsv"
-    with open(temp_blastn_tsv, mode="w", newline="") as write_file:
-        writer = csv.writer(write_file, delimiter='\t')
-        header = ["query_sequence_id", "query_gi", "query_accession", "query_accession_version", "query_sequence_length", "subject_sequence_id", "subject_all_sequence_id", "subject_gi", "subject_all_gi", "subject_accession", "subject_accession_version", "subject_all_accession", "subject_sequence_length", "query_start", "query_end", "subject_start", "subject_end", "query_sequence", "subject_sequence", "expect_value", "bit_score", "raw_score", "alignment_length", "percentage_identity", "number_of_identical_matches", "number_of_mismatches", "number_of_positive_scoring_matches", "number_of_gap_opens", "number_of_gaps", "percentage_of_positive_scoring_matches", "query/subject_frame", "query_frames", "subject_frames", "blast_traceback_operations", "subject_taxid", "subject_scientific_name", "subject_common_name", "subject_blast_name", "subject_super_kingdom", "subject_all_taxids", "subject_all_scientific_names", "subject_all_common_names", "subject_all_blast_names", "subject_all_super_kingdoms", "subject_strand", "query_coverage_per_subject", "query_coverage_per_hsp", "query_coverage_per_unique_subject", "subject_title", "subject_all_titles"]
-        writer.writerow(header)
-
-    # Read from the temporary TSV file created by adding_parent
-    # We now read directly from the blasting() output
-    with open("sample.tsv", mode="r", newline="") as read_file:
+    blastn_file_creation()
+    with open(output_file, mode="r", newline="") as read_file:
         reader = csv.reader(read_file, delimiter='\t')
         accession_rows = list(reader)[1:]
     
@@ -151,22 +118,25 @@ def blastn():
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(run_blastn_for_accession, row) for row in accession_rows]
         concurrent.futures.wait(futures)
-    
-    # Convert the temp TSV to the final XLSX file
-    convert_tsv_to_xlsx(temp_blastn_tsv, blastn_file)
-    os.remove(temp_blastn_tsv)
 
     print("All blastn tasks completed successfully!\n")
 
 # moving the compressed file from Downloads to compressed_files
 def moving():
     print(f"Moving {name}.{extn} from Downloads to compressed_files\n")
-    moving = f"mv ~/Downloads/{name}.{extn} ./compressed_files"
-    result = subprocess.run(moving, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error running blast: {result.stderr}")
-        exit(1)
-    print(f"Successfully moved {name}.{extn} from Downloads to compressed_files\n")
+    source_path = os.path.expanduser(f"~/Downloads/{name}.{extn}")
+    dest_dir = "./compressed_files"
+    dest_path = os.path.join(dest_dir, f"{name}.{extn}")
+    if os.path.exists(source_path):
+        try:
+            import shutil
+            shutil.move(source_path, dest_path)
+            print(f"Successfully moved {name}.{extn} from Downloads to compressed_files\n")
+        except Exception as e:
+            print(f"Error moving file: {e}")
+            exit(1)
+    else:
+        print(f"Warning: Source file {source_path} not found. Skipping move operation.")
 
 # removing the temporary files
 def removing_file():
@@ -198,7 +168,7 @@ if __name__ == "__main__":
     blasting()
     adding_parent()
     blastn()
-    moving()
+    # moving()
     removing_file()
     removing_directory()
     
@@ -211,6 +181,6 @@ if __name__ == "__main__":
     print("="*40)
     print(f"Started on: {start_readable}")
     print(f"Ended at:   {end_readable}")
-    print(f"Total time taken: {convert_seconds_to_hms(total_duration)}")
+    print(f"Total time taken: {total_duration:.2f} seconds")
     print("="*40 + "\n")
     print("All tasks completed successfully!")
