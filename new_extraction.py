@@ -10,33 +10,33 @@ import pandas as pd
 from datetime import datetime
 
 # initializing variables
-name = "ITS_eukaryote_sequences"
+name = "ITS_RefSeq_Fungi"
 extn = "tar.gz"
-db_name = f"{name}/{name}"
-output_file = f"csv_files/{name}.tsv"
-blastn_file = f"blastn/{name}-blastn.tsv"
-sql_file = f"./{name}/taxonomy4blast.sqlite3"
+db_name = f"./extracted_files/{name}/{name}"
+output_file = f"extracted_files/{name}/{name}.tsv"
+blastn_file = f"extracted_files/{name}/{name}-blastn.tsv"
+sql_file = f"./extracted_files/{name}/taxonomy4blast.sqlite3"
 blastn_lock = threading.Lock()
 
 # creating directory in the current directory
 def creating_directory():
     print(f"Creating directory named {name}\n")
-    create_dir = f"mkdir -p {name}"
+    create_dir = f"mkdir -p ./extracted_files/{name}"
     result = subprocess.run(create_dir, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"Error running command: {result.stderr}")
         exit(1)
     print(f"Successfully created a directory named {name}\n")
 
-# extracting the the compressed file in Downloads to the newly created directory
+# extracting the the compressed file in compressed_files to the newly created directory
 def extraction():
-    print(f"Extracting {name}.{extn} from Downloads to current directory\n")
-    extract = f"tar -xvzf ~/Downloads/{name}.{extn} -C ./{name}"
+    print(f"Extracting {name}.{extn} from compressed_files to current directory\n")
+    extract = f"tar -xvzf ./compressed_files/{name}.{extn} -C ./extracted_files/{name}"
     result = subprocess.run(extract, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"Error running blast: {result.stderr}")
         exit(1)
-    print(f"Successfully extracted {name}.{extn} from Downloads to current directory\n")
+    print(f"Successfully extracted {name}.{extn}\n")
 
 # running blastdbcmd command extract data into a temporary file sample.tsv
 def blasting():
@@ -170,8 +170,8 @@ if __name__ == "__main__":
     adding_parent()
     blastn()
     # moving()
-    removing_file()
-    removing_directory()
+    # removing_file()
+    # removing_directory()
     
     end_datetime = datetime.now()
     total_duration = end_datetime - start_datetime
